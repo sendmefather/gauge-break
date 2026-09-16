@@ -137,7 +137,7 @@ word for anything.
 
 ## Reproduced
 
-| | machine-a | machine-b |
+| | desktop-1p35j9o | spark-ae31 |
 |---|---|---|
 | architecture | AMD64 / Windows 11 | aarch64 / Linux |
 | extended precision | double-double | quad |
@@ -148,7 +148,7 @@ word for anything.
 Different routes through the work. Identical bits.
 
 The run records in `records/` are the originals with two substitutions: the
-`host` field carries `machine-a`/`machine-b` in place of the real hostnames, and
+`host` field carries `desktop-1p35j9o`/`spark-ae31` in place of the real hostnames, and
 `snapshot` has its home directory replaced by `<local>`. Nothing else was
 touched; every measured quantity is as the run wrote it.
 
@@ -164,5 +164,5 @@ half-widths against the model's single negative LayerNorm gain
 Target: `openai-community/gpt2`, sha256
 `248dfc3911869ec493c76e65bf2fcf7f615828b0254c12b473182f0f81d3a707`.
 
-MIT licensed. Dimension Zero Reverse Engineering &middot;
+MIT licensed. Anthony Collado, Dimension Zero Reverse Engineering &middot;
 [d0re.com](https://www.d0re.com)
