@@ -32,7 +32,7 @@ at the end shows the test is capable of failing.
 import json, struct, sys
 import numpy as np
 
-# Reported by the two runs, machine-a and machine-b, h.0.attn.c_attn.
+# Reported by the two runs, desktop-1p35j9o and spark-ae31, h.0.attn.c_attn.
 ALPHA_DESKTOP = [-2.25356813227178517e-03, 2.70811699038357809e-03, 2.26760958823000102e-03,
                  8.78706153379211824e-04, 2.02332665096445962e-04, 7.94487659798388205e-04,
                  2.34088600615995094e-03, 4.08483942033393090e-04]
