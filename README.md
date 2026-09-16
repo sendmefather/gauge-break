@@ -23,6 +23,32 @@ grid point in every coordinate at exactly one place.
 
 Full derivation: **[the paper](https://www.d0re.com/paper)**.
 
+## Access model, and what this is not
+
+This needs the model's **internal activations** &mdash; the inputs and outputs of
+each linear map. That means white-box access to a running model: you can
+instrument the forward pass, but you do not have the weights.
+
+It is **not** an API attack. If all you can do is send prompts and read
+completions, nothing here applies. Do not read this as "models can be stolen
+through their API", because that is not the claim and this code does not support
+it.
+
+The setting it does describe is narrower and, we think, more interesting: a
+model whose weights are sealed but whose execution you can observe. An enclave,
+a signed binary, a sandboxed accelerator, a service you can profile. In that
+setting the LayerNorm gauge is the last thing standing between an observer and
+the exact parameters, and section 4 of the paper is about why it does not stand.
+
+Two further limits, stated plainly:
+
+- This repo recovers **GPT-2 small**. The larger 32B-scale result reported
+  elsewhere is not reproducible from this code and you should not treat this as
+  evidence for it.
+- The embeddings are closed by the tied readout (768 logit equations), not by
+  the lattice argument. The lattice attack on the embedding gauge reached 2.08%
+  and is reported as a negative result, because a uniform shift of a feature is
+  itself a lattice translation and the float32 grid supplies no constraint.
 ## The mathematics, compressed
 
 LayerNorm emits `ln_j = g_j * xhat_j + beta_j` with `sum_j xhat_j = 0`. So for
