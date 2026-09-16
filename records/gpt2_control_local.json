@@ -1,0 +1,89 @@
+{
+ "host": "machine-a",
+ "platform": "Windows-11-10.0.26200-SP0",
+ "machine": "AMD64",
+ "python": "3.14.5",
+ "numpy": "2.5.2",
+ "longdouble_eps": 2.220446049250313e-16,
+ "snapshot": "<local>/models--openai-community--gpt2/snapshots/607a30d783dfa663caf39e06633721c8d4cfcd7e",
+ "D": 768,
+ "L": 12,
+ "NH": 12,
+ "V": 50257,
+ "N": 8192,
+ "NSEQ": 8,
+ "seed": 32,
+ "ids_sha256": "50c674a8d7a91b940244df165178892e84b7c65c73905ded8eba176b086e603a",
+ "blocks_run": 1,
+ "denominator": 124439808,
+ "tensors": 148,
+ "checkpoint_sha256": "248dfc3911869ec493c76e65bf2fcf7f615828b0254c12b473182f0f81d3a707",
+ "script_sha256": "c833ea994ddac7c14e242fe42d639f6c67bfcf16321c305d7aca76e1dbeedd39",
+ "A": [
+  {
+   "map": "h.0.attn.c_proj.weight",
+   "ok": 590592,
+   "total": 590592,
+   "residual": 2.1316282072803006e-14
+  },
+  {
+   "map": "h.0.mlp.c_proj.weight",
+   "ok": 2360064,
+   "total": 2360064,
+   "residual": 2.842170943040401e-14
+  }
+ ],
+ "B": [
+  {
+   "map": "h.0.attn.c_attn.weight",
+   "rank": 768,
+   "cols": 769,
+   "null_cos": 1.0,
+   "sv_ratio": 6.402832452395301e-17,
+   "output_error": 9.769962616701378e-14,
+   "minnorm_bitexact": 0.0,
+   "weights": 1769472
+  },
+  {
+   "map": "h.0.mlp.c_fc.weight",
+   "rank": 768,
+   "cols": 769,
+   "null_cos": 1.0000000000000002,
+   "sv_ratio": 7.708918915692814e-17,
+   "output_error": 3.885780586188048e-14,
+   "minnorm_bitexact": 0.0,
+   "weights": 2359296
+  }
+ ],
+ "LN": {
+  "ok": 3072,
+  "total": 3072
+ },
+ "pins": [],
+ "A_ok": 2950656,
+ "A_total": 2950656,
+ "pin_ok": 0,
+ "pin_total": 0,
+ "ok": 2953728,
+ "tallied": 2953728,
+ "misses": {},
+ "sha256_recovered_bits": "5ec1f78da17fd66d42a97fdb97aa8da05f0394b402c7993d2ad72a6457068561",
+ "sha256_checkpoint_bits": "5ec1f78da17fd66d42a97fdb97aa8da05f0394b402c7993d2ad72a6457068561",
+ "bit_identical": true,
+ "control": {
+  "h.0.attn.c_proj.weight": {
+   "shuffled_bitmatch": 0.0,
+   "residual": 21.132768196651806,
+   "threshold": 0.001,
+   "passed": true
+  },
+  "h.0.mlp.c_proj.weight": {
+   "shuffled_bitmatch": 0.0,
+   "residual": 64.65982247520292,
+   "threshold": 0.001,
+   "passed": true
+  }
+ },
+ "seconds": 36.0,
+ "finished_utc": "2026-09-16T11:56:12Z"
+}

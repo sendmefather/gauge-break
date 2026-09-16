@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quantisation Breaks the LayerNorm Gauge</title>
+<link rel="stylesheet" href="/fonts.css">
+</head>
+<body>
+<style>
+:root{
+ --ground:#030303;--panel:#0a0a0a;--ink:#fafafa;--body:#b0b0b0;--muted:#7d7d7d;
+ --rule:#2a2a2a;--soft:#1a1a1a;--cont:#5fd0cc;--disc:#e8a24a;
+ --cw:#5fd0cc14;--dw:#e8a24a14;}}
+:root[data-theme="dark"]{
+ --ground:#0d1114;--panel:#141a1f;--ink:#eef3f6;--body:#c3cdd5;--muted:#8a97a3;
+ --rule:#263038;--soft:#1c242a;--cont:#4fc4c0;--disc:#e8a24a;
+ --cw:#4fc4c01f;--dw:#e8a24a1f;}
+*{box-sizing:border-box}
+body{background:var(--ground);color:var(--body);font-family:"IBM Plex Mono",ui-monospace,monospace;
+ font-size:17px;line-height:1.62;margin:0}
+.page{max-width:1180px;margin:0 auto;padding-inline:20px}
+.col{max-width:68ch;margin-inline:auto;width:100%;min-width:0}
+.wide{max-width:960px;margin-inline:auto;width:100%;min-width:0}
+h1,h2,h3{color:var(--ink);text-wrap:balance;font-weight:400;font-family:Newsreader,Georgia,serif}
+h1{font-size:clamp(2.1rem,5.2vw,3.35rem);line-height:1.04;letter-spacing:-.016em;margin:0}
+h2{font-size:clamp(1.45rem,3.4vw,1.95rem);line-height:1.18;margin:0 0 .7em}
+h3{font-size:1.24rem;font-style:italic;margin:2.4em 0 .6em}
+p{margin:0 0 1.15em}
+a{color:var(--cont)}
+code,.mono{font-family:"IBM Plex Mono",ui-monospace,monospace;overflow-wrap:anywhere}
+code{font-size:.88em;background:var(--cw);padding:1px 5px;border-radius:2px;color:var(--ink)}
+.eyebrow{font-family:"IBM Plex Mono",monospace;font-size:.68rem;letter-spacing:.22em;
+ text-transform:uppercase;color:var(--muted);margin:0 0 1.5em}
+header.doc{padding-block:88px 40px;border-bottom:1px solid var(--rule)}
+.lede{font-family:Newsreader,Georgia,serif;font-size:clamp(1.12rem,2.6vw,1.34rem);line-height:1.5;margin:1.4em 0 0;max-width:60ch}
+.byline{font-family:"IBM Plex Mono",monospace;font-size:.76rem;color:var(--muted);
+ margin-top:2.2em;line-height:1.9;display:flex;flex-wrap:wrap;gap:6px 22px}
+section{padding-block:62px;border-bottom:1px solid var(--soft)}
+.snum{font-family:"IBM Plex Mono",monospace;font-size:.68rem;letter-spacing:.2em;
+ color:var(--muted);display:block;margin-bottom:.9em}
+.thm{border-left:2px solid var(--cont);background:var(--cw);padding:22px 26px;margin:2em 0;
+ border-radius:0 3px 3px 0}
+.thm.imp{border-left-color:var(--disc);background:var(--dw)}
+.thm .k{font-family:"IBM Plex Mono",monospace;font-size:.66rem;letter-spacing:.2em;
+ text-transform:uppercase;color:var(--muted);display:block;margin-bottom:.7em}
+.thm p:last-child,.proof p:last-child,.limit p:last-child{margin-bottom:0}
+.proof{font-size:.95rem;color:var(--muted);border-left:1px solid var(--rule);
+ padding-left:20px;margin:1.6em 0}
+.eq{font-family:"IBM Plex Mono",monospace;font-size:.92rem;line-height:1.85;background:var(--panel);
+ border:1px solid var(--rule);border-radius:3px;padding:18px 22px;margin:1.6em 0;
+ overflow-x:auto;color:var(--ink)}
+figure{margin:2.6em 0;max-width:100%}
+figcaption{font-family:"IBM Plex Mono",monospace;font-size:.72rem;line-height:1.7;
+ color:var(--muted);margin-top:.9em}
+figcaption b{color:var(--ink);font-weight:500}
+svg{display:block;width:100%;height:auto;max-width:100%}
+.tablewrap{overflow-x:auto;max-width:100%;margin:1.8em 0;border-top:1px solid var(--rule)}
+table{border-collapse:collapse;width:100%;font-family:"IBM Plex Mono",monospace;
+ font-size:.8rem;font-variant-numeric:tabular-nums}
+th,td{text-align:left;padding:10px 16px 10px 0;border-bottom:1px solid var(--soft);
+ vertical-align:top;color:var(--body)}
+th{font-size:.66rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);
+ font-weight:500;white-space:nowrap}
+td.n{text-align:right;color:var(--ink);white-space:nowrap}
+td.ok{color:var(--cont)}
+td.no{color:var(--disc)}
+.keyfig{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(190px,100%),1fr));
+ gap:1px;background:var(--rule);border:1px solid var(--rule);margin:2.2em 0}
+.keyfig>div{background:var(--panel);padding:20px 22px}
+.keyfig .k{font-family:"IBM Plex Mono",monospace;font-size:.62rem;letter-spacing:.18em;
+ text-transform:uppercase;color:var(--muted);margin-bottom:1em}
+.keyfig .v{font-family:"IBM Plex Mono",monospace;font-size:1.32rem;color:var(--ink);
+ font-variant-numeric:tabular-nums;line-height:1.2}
+.keyfig .s{font-size:.86rem;color:var(--muted);margin-top:.6em;line-height:1.5}
+.limit{border:1px solid var(--disc);border-radius:3px;padding:24px 26px;margin:2em 0;background:var(--dw)}
+footer{padding-block:54px 80px;font-family:"IBM Plex Mono",monospace;font-size:.72rem;
+ color:var(--muted);line-height:1.9}
+@media (max-width:640px){header.doc{padding-block:56px 32px}section{padding-block:44px}body{font-size:16px}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+.skip-link{position:fixed;left:16px;top:-70px;z-index:200;padding:12px 18px;background:#f2f2f2;
+ color:#030303;font-size:.8rem;letter-spacing:.06em;transition:top .18s ease}
+.skip-link:focus{top:12px}
+nav.top{position:fixed;left:0;right:0;top:0;z-index:60;display:flex;align-items:center;
+ justify-content:space-between;gap:10px;padding:8px 20px;background:rgba(6,6,6,.82);
+ backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+ border-bottom:1px solid rgba(244,244,244,.1)}
+nav.top>a:first-child{display:flex;align-items:center;gap:10px;flex:0 0 auto;min-height:24px}
+nav.top img{width:24px;height:24px;display:block}
+.brandname{font-size:.86rem;font-weight:500;letter-spacing:.04em}
+.brandname span{opacity:.45}
+.secnav{display:flex;align-items:center;gap:16px;font-size:.66rem;letter-spacing:.16em;
+ text-transform:uppercase;flex:1 1 auto;min-width:0;overflow-x:auto;scrollbar-width:none}
+.secnav::-webkit-scrollbar{display:none}
+.secnav a{flex:0 0 auto;white-space:nowrap;opacity:.72;min-height:24px;display:inline-flex;
+ align-items:center;color:inherit;text-decoration:none}
+.secnav a:hover{opacity:1}
+.back{flex:0 0 auto;font-size:.66rem;letter-spacing:.18em;text-transform:uppercase;opacity:.72;
+ min-height:24px;display:inline-flex;align-items:center;color:inherit;text-decoration:none}
+header.doc{padding-block:150px 40px}
+a{text-decoration:none}
+a:hover{text-decoration:underline;text-underline-offset:4px}
+::selection{background:#f2f2f2;color:#030303}
+:focus-visible{outline:2px solid #f2f2f2;outline-offset:3px}
+</style>
+<div class="page">
+<a class="skip-link" href="#main">Skip to content</a>
+<nav class="top">
+  <a href="/"><img src="/penteract-mono.svg" alt=""><span class="brandname">d0re<span>.com</span></span></a>
+  <div class="secnav"><a href="/research">Research</a><a href="/d0fs">d0fs</a><a href="/recovery">Recovery</a></div>
+  <a class="back" href="/research">&larr; research</a>
+</nav>
+<main id="main">
+
+<header class="doc"><div class="col">
+<p class="eyebrow">Dimension Zero Reverse Engineering &middot; preprint</p>
+<h1>Quantisation breaks the LayerNorm gauge</h1>
+<p class="lede">A transformer's LayerNorm-fed weights carry an exact continuous symmetry, which makes them unrecoverable from observations in real arithmetic. Because the weights are stored in float32, they are not in real arithmetic. The symmetry is broken by the grid, and every one of GPT-2 small's 124,439,808 parameters follows.</p>
+<div class="byline">
+<span>Dimension Zero Reverse Engineering</span>
+<span>16 September 2026</span>
+<span>target: openai-community/gpt2, sha256 248dfc39&hellip;d3a707</span>
+</div>
+</div></header>
+<section><div class="col">
+<span class="snum">Abstract</span>
+<p>Given the activations a transformer produces on its own forward passes, which of its weights are determined? The answer splits the parameters into three populations of genuinely different status. Maps not fed by a LayerNorm are determined outright by least squares. Maps fed by a LayerNorm are <em>not</em> determined: the normaliser's centring induces an exact one-dimensional gauge symmetry, so an entire line of weight vectors produces identical outputs, and least squares provably returns the wrong point on that line. The embedding tables carry a second gauge the first argument cannot touch.</p>
+<p>The obstruction is real in &#8477;. It is not real in float32. A gauge orbit is a continuous line; the stored weights lie on a discrete grid; and a line through a 769-dimensional lattice passes within rounding distance of a grid point in every coordinate at <em>one</em> place. Enumerating 13,645,404 candidates for a single column yields exactly one survivor at 769 of 769 bits. The probability a wrong candidate survives is 10<sup>&minus;6250</sup>.</p>
+</div></section><section><div class="col">
+<span class="snum">&sect;1 &nbsp; What is observed</span>
+<h2>The instrument sees activations, never weights</h2>
+<p>Run <span class="mono">N</span> token sequences through the model. At each linear map record the input activations <span class="mono">X</span> (<span class="mono">N &times; fan_in</span>) and the output activations <span class="mono">Y</span> (<span class="mono">N &times; fan_out</span>). No parameter is ever read. The question is whether <span class="mono">X</span> and <span class="mono">Y</span> determine it.</p>
+<p>Throughout, <span class="mono">N = 8,192</span> (8 sequences of 1,024 tokens), seed 32, with the token ids hashed to <span class="mono">50c674a8d7a91b94&hellip;</span> so a replication uses the same probes.</p>
+</div></section>
+<section><div class="col">
+<span class="snum">&sect;2 &nbsp; The easy population</span>
+<h2>Full-rank designs are determined outright</h2>
+<p>For a map whose input is not a LayerNorm output &mdash; in GPT-2, <span class="mono">attn.c_proj</span> and <span class="mono">mlp.c_proj</span> &mdash; write <span class="mono">Y = XW + b</span> and augment with a column of ones, <span class="mono">Xa = [X, 1]</span>.</p>
+<div class="eq">[W ; b] = (Xa&#7488; Xa)&#8315;&#185; Xa&#7488; Y</div>
+<p>If <span class="mono">rank(Xa) = fan_in + 1</span> this is the unique solution: no other pair reproduces <span class="mono">Y</span>. That needs <span class="mono">N &gt; fan_in + 1</span>, which is why the observation count may never drop below the largest fan-in, 3,072 here. Solve in extended precision, then round to the nearest float32; rounding is safe because the residual sits fourteen orders of magnitude below half an ulp.</p>
+<div class="tablewrap"><table>
+<thead><tr><th>map</th><th>bits recovered</th><th>residual</th></tr></thead>
+<tbody>
+<tr><td>h.0.attn.c_proj.weight</td><td class="n ok">590,592 / 590,592</td><td class="n">2.132e&minus;14</td></tr>
+<tr><td>h.0.mlp.c_proj.weight</td><td class="n ok">2,360,064 / 2,360,064</td><td class="n">2.842e&minus;14</td></tr>
+</tbody></table></div>
+<p>Across the model this population is 35,446,272 parameters and it closes with textbook linear algebra. It is not the interesting part.</p>
+</div></section>
+<section><div class="col">
+<span class="snum">&sect;3 &nbsp; The obstruction</span>
+<h2>LayerNorm hands its consumers an exact symmetry</h2>
+<p>LayerNorm emits <span class="mono">ln&#8323; = g&#8323;&middot;x&#770;&#8323; + &beta;&#8323;</span> where <span class="mono">x&#770;</span> has been centred, so <span class="mono">&sum;&#8323; x&#770;&#8323; = 0</span>. Divide by <span class="mono">g&#8323;</span> and sum over the feature index:</p>
+<div class="eq">&sum;&#8323; ln&#8323;/g&#8323;  =  &sum;&#8323; x&#770;&#8323;  +  &sum;&#8323; &beta;&#8323;/g&#8323;  =  &sum;&#8323; &beta;&#8323;/g&#8323;  &equiv;  C</div>
+<p>The left side is built from observations. The right side is a constant of the layer. The equality holds for every input the network will ever see, so the augmented design is rank-deficient in a direction known in closed form:</p>
+<div class="eq">v = (1/g, &minus;C)&nbsp;&nbsp;&nbsp;satisfies&nbsp;&nbsp;&nbsp;[ln, 1] &middot; v = 0</div>
+<div class="thm imp"><span class="k">Theorem 1 &mdash; gauge invariance</span>
+<p>For any scalar <span class="mono">&alpha;</span>, the substitution <span class="mono">W&prime; = W + &alpha;&middot;g&#8315;&#185;</span>, <span class="mono">b&prime; = b &minus; &alpha;C</span> leaves the map's output unchanged, exactly.</p></div>
+<div class="proof"><p><b>Proof.</b> <span class="mono">X W&prime; + b&prime; = XW + &alpha;(X g&#8315;&#185;) + b &minus; &alpha;C = XW + b + &alpha;(&sum;&#8323; ln&#8323;/g&#8323; &minus; C) = XW + b</span>, since the bracket vanishes identically. &#9632;</p></div>
+<p>This is not a numerical near-degeneracy. It is a symmetry of the function being observed, and it has a blunt consequence: a one-parameter family of weight matrices is observationally indistinguishable. Least squares must pick one, and it picks the minimum-norm point &mdash; the one orthogonal to <span class="mono">v</span> &mdash; which is not the point the checkpoint stores.</p>
+<figure class="wide">
+<svg viewBox="0 0 900 330" role="img" aria-label="Weights move by twenty-four million, the output by a ten-millionth">
+<rect x="0" y="0" width="900" height="330" fill="var(--panel)"/>
+<g stroke="var(--soft)" stroke-width="1">
+<line x1="86" y1="30" x2="858" y2="30"/><line x1="86" y1="86" x2="858" y2="86"/>
+<line x1="86" y1="142" x2="858" y2="142"/><line x1="86" y1="198" x2="858" y2="198"/>
+<line x1="86" y1="254" x2="858" y2="254"/></g>
+<g font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--muted)" text-anchor="end">
+<text x="78" y="34">1e+8</text><text x="78" y="90">1e+3</text><text x="78" y="146">1e&minus;2</text>
+<text x="78" y="202">1e&minus;7</text><text x="78" y="258">1e&minus;14</text></g>
+<polyline points="160,146 390,110 620,74 840,40" fill="none" stroke="var(--disc)" stroke-width="2.5"/>
+<polyline points="160,254 390,249 620,231 840,203" fill="none" stroke="var(--cont)" stroke-width="2.5"/>
+<g fill="var(--disc)"><circle cx="160" cy="146" r="4.5"/><circle cx="390" cy="110" r="4.5"/><circle cx="620" cy="74" r="4.5"/><circle cx="840" cy="40" r="4.5"/></g>
+<g fill="var(--cont)"><circle cx="160" cy="254" r="4.5"/><circle cx="390" cy="249" r="4.5"/><circle cx="620" cy="231" r="4.5"/><circle cx="840" cy="203" r="4.5"/></g>
+<g font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--muted)" text-anchor="middle">
+<text x="160" y="278">&alpha;=1e&minus;3</text><text x="390" y="278">&alpha;=1</text>
+<text x="620" y="278">&alpha;=1e+3</text><text x="828" y="278">&alpha;=1e+6</text></g>
+<text x="176" y="100" font-family="IBM Plex Mono, monospace" font-size="12" fill="var(--disc)">how far the weights moved</text>
+<text x="176" y="228" font-family="IBM Plex Mono, monospace" font-size="12" fill="var(--cont)">how far the output moved</text>
+</svg>
+<figcaption><b>Figure 1 &mdash; the symmetry, measured.</b> Block 0, 4,096 random inputs through the real <span class="mono">h.0.ln_1</span>. Taking <span class="mono">&alpha;</span> to 10<sup>6</sup> displaces individual weights by up to <b>2.388837e+07</b> while the output changes by <b>1.891e&minus;07</b>, which is float round-off. Fourteen orders of magnitude separate the curves. Across those inputs <span class="mono">&sum; ln&#8323;/g&#8323;</span> varies by 1.634e&minus;13 about <span class="mono">C</span>.</figcaption>
+</figure>
+<div class="tablewrap"><table>
+<thead><tr><th>map</th><th>design rank</th><th>null cosine</th><th>output error</th><th>bits correct</th></tr></thead>
+<tbody>
+<tr><td>h.0.attn.c_attn.weight</td><td class="n">768 / 769</td><td class="n">1.000000</td><td class="n">9.77e&minus;14</td><td class="n no">0.00000</td></tr>
+<tr><td>h.0.mlp.c_fc.weight</td><td class="n">768 / 769</td><td class="n">1.000000</td><td class="n">3.89e&minus;14</td><td class="n no">0.00000</td></tr>
+<tr><td>h.1.attn.c_attn.weight</td><td class="n">768 / 769</td><td class="n">1.000000</td><td class="n">4.35e&minus;14</td><td class="n no">0.00000</td></tr>
+<tr><td>h.1.mlp.c_fc.weight</td><td class="n">768 / 769</td><td class="n">1.000000</td><td class="n">8.53e&minus;14</td><td class="n no">0.00000</td></tr>
+</tbody></table></div>
+<p>Rank deficient by exactly one, every time. The null direction sits at cosine <span class="mono">1.000000</span> to the predicted <span class="mono">(1/g, &minus;C)</span>, so the deficiency is the derived symmetry and not numerical noise. The fit reproduces outputs to <span class="mono">1e&minus;14</span> and recovers <b>approximately none of the stored bits</b>. A perfect functional copy sharing almost no bits with the original is exactly what Theorem 1 predicts.</p>
+<div class="thm imp"><span class="k">Corollary &mdash; an impossibility</span>
+<p>From activations alone, in exact real arithmetic, the 49,545,216 LayerNorm-fed weights of GPT-2 small cannot be recovered. No estimator separates points on a gauge orbit, because nothing observable distinguishes them.</p></div>
+</div></section><section><div class="col">
+<span class="snum">&sect;4 &nbsp; The break</span>
+<h2>A line through a lattice lands once</h2>
+<p>The corollary is a statement about &#8477;. The weights do not live in &#8477;. They live in float32, a discrete set, and the gauge orbit is a line drawn through it:</p>
+<div class="eq">L = { (W<sub>min</sub> + &alpha;&middot;g&#8315;&#185;,&nbsp; b<sub>min</sub> &minus; &alpha;C) : &alpha; &isin; &#8477; }</div>
+<p>Almost every point on that line has coordinates that are not float32 numbers. Recovery becomes a question of simultaneity: for which <span class="mono">&alpha;</span> do <em>all 769</em> coordinates land on grid points at once?</p>
+<figure class="wide">
+<svg viewBox="0 0 900 300" role="img" aria-label="A line crossing a grid, touching exactly one lattice point">
+<rect x="0" y="0" width="900" height="300" fill="var(--panel)"/>
+<g fill="var(--rule)">
+<circle cx="140" cy="62" r="3"/><circle cx="240" cy="62" r="3"/><circle cx="340" cy="62" r="3"/><circle cx="440" cy="62" r="3"/><circle cx="540" cy="62" r="3"/><circle cx="640" cy="62" r="3"/><circle cx="740" cy="62" r="3"/>
+<circle cx="140" cy="122" r="3"/><circle cx="240" cy="122" r="3"/><circle cx="340" cy="122" r="3"/><circle cx="540" cy="122" r="3"/><circle cx="640" cy="122" r="3"/><circle cx="740" cy="122" r="3"/>
+<circle cx="140" cy="182" r="3"/><circle cx="240" cy="182" r="3"/><circle cx="340" cy="182" r="3"/><circle cx="440" cy="182" r="3"/><circle cx="540" cy="182" r="3"/><circle cx="640" cy="182" r="3"/><circle cx="740" cy="182" r="3"/>
+<circle cx="140" cy="242" r="3"/><circle cx="240" cy="242" r="3"/><circle cx="340" cy="242" r="3"/><circle cx="440" cy="242" r="3"/><circle cx="540" cy="242" r="3"/><circle cx="640" cy="242" r="3"/><circle cx="740" cy="242" r="3"/>
+</g>
+<line x1="120" y1="262" x2="772" y2="46" stroke="var(--cont)" stroke-width="2.5"/>
+<circle cx="440" cy="122" r="7" fill="var(--disc)"/>
+<circle cx="440" cy="122" r="15" fill="none" stroke="var(--disc)" stroke-width="1.5"/>
+<text x="466" y="114" font-family="IBM Plex Mono, monospace" font-size="12" fill="var(--disc)">the stored weights</text>
+<text x="466" y="132" font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--muted)">every coordinate on-grid at once</text>
+<text x="120" y="288" font-family="IBM Plex Mono, monospace" font-size="12" fill="var(--cont)">the gauge orbit: every point here produces identical outputs</text>
+</svg>
+<figcaption><b>Figure 2 &mdash; the mechanism, in two dimensions.</b> Drawn at 2 coordinates for legibility; the real constraint runs over 769 at once. Any point on the teal line is a perfect functional copy. Only one is also a lattice point in every coordinate, and that one is the checkpoint.</figcaption>
+</figure>
+<p>Move <span class="mono">&alpha;</span> by more than <span class="mono">min&#8323;(&frac12;ulp(W&#8323;)&middot;|g&#8323;|)</span> and at least one coordinate falls off its grid point. For column 0 of <span class="mono">h.0.attn.c_attn</span> that tolerance is <span class="mono">3.204e&minus;12</span> against a search window of <span class="mono">0.25</span>. Score a candidate by its worst rounding residual across the 769 coordinates, in ulp.</p>
+<div class="keyfig">
+<div><div class="k">score, true &alpha;</div><div class="v">3.7e&minus;09</div><div class="s">ulp, worst of 769 coordinates</div></div>
+<div><div class="k">score, 20,000 random &alpha;</div><div class="v">0.4934&ndash;0.5000</div><div class="s">what uniform rounding predicts</div></div>
+<div><div class="k">separation</div><div class="v">10<sup>8.1</sup></div><div class="s">between signal and null</div></div>
+</div>
+<figure class="wide">
+<svg viewBox="0 0 900 240" role="img" aria-label="The true alpha scores eight decades below every random alpha">
+<rect x="0" y="0" width="900" height="240" fill="var(--panel)"/>
+<line x1="80" y1="168" x2="852" y2="168" stroke="var(--rule)" stroke-width="1"/>
+<g font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--muted)" text-anchor="middle">
+<text x="120" y="190">1e&minus;9</text><text x="272" y="190">1e&minus;7</text><text x="424" y="190">1e&minus;5</text>
+<text x="576" y="190">1e&minus;3</text><text x="728" y="190">1e&minus;1</text><text x="840" y="190">0.5</text></g>
+<text x="466" y="216" font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--muted)" text-anchor="middle">score, ulp (log scale)</text>
+<rect x="822" y="66" width="28" height="102" fill="var(--disc)"/>
+<text x="812" y="56" font-family="IBM Plex Mono, monospace" font-size="12" fill="var(--disc)" text-anchor="end">20,000 wrong &alpha; pile up here</text>
+<line x1="140" y1="66" x2="140" y2="168" stroke="var(--cont)" stroke-width="3"/>
+<circle cx="140" cy="66" r="6" fill="var(--cont)"/>
+<text x="156" y="58" font-family="IBM Plex Mono, monospace" font-size="12" fill="var(--cont)">the true &alpha;</text>
+<text x="156" y="76" font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--muted)">3.725e&minus;09 ulp</text>
+</svg>
+<figcaption><b>Figure 3 &mdash; the statistic is calibrated, not tuned.</b> Twenty thousand wrong candidates score between 0.4934 and 0.5000, and their per-coordinate residuals average 0.2494 against the 0.2500 uniform rounding predicts. The null behaves exactly as theory requires, which is what licenses reading the signal.</figcaption>
+</figure>
+<div class="thm"><span class="k">Theorem 2 &mdash; uniqueness</span>
+<p>Under the null that a wrong <span class="mono">&alpha;</span> rounds each coordinate uniformly, the probability it scores as well as the true <span class="mono">&alpha;</span> across all 769 coordinates is <span class="mono">(2 &times; 3.725e&minus;09)<sup>769</sup> = 10<sup>&minus;6250</sup></span>. Over the 13,645,404 candidates enumerated, the expected number of false survivors is <span class="mono">10<sup>&minus;6243</sup></span>.</p></div>
+<p>The survivor is not the best of a field. It is the only member of the field, by a margin with no physical analogue. And the enumeration was run:</p>
+<div class="tablewrap"><table>
+<thead><tr><th>column</th><th>candidates</th><th>survivors</th><th>score, ulp</th><th>bits</th></tr></thead>
+<tbody>
+<tr><td>0</td><td class="n">13,645,404</td><td class="n">1</td><td class="n">1.59e&minus;04</td><td class="n ok">769 / 769</td></tr>
+<tr><td>1</td><td class="n">13,727,985</td><td class="n">1</td><td class="n">1.49e&minus;04</td><td class="n ok">769 / 769</td></tr>
+<tr><td>2</td><td class="n">13,838,150</td><td class="n">1</td><td class="n">8.65e&minus;04</td><td class="n ok">769 / 769</td></tr>
+<tr><td>3</td><td class="n">13,085,841</td><td class="n">1</td><td class="n">1.05e&minus;04</td><td class="n ok">769 / 769</td></tr>
+<tr><td>4</td><td class="n">12,963,472</td><td class="n">1</td><td class="n">2.03e&minus;05</td><td class="n ok">769 / 769</td></tr>
+<tr><td>5</td><td class="n">13,627,551</td><td class="n">1</td><td class="n">3.46e&minus;05</td><td class="n ok">769 / 769</td></tr>
+<tr><td>6</td><td class="n">13,529,212</td><td class="n">1</td><td class="n">2.19e&minus;05</td><td class="n ok">769 / 769</td></tr>
+<tr><td>7</td><td class="n">12,797,062</td><td class="n">1</td><td class="n">4.00e&minus;04</td><td class="n ok">769 / 769</td></tr>
+<tr><td><b>total</b></td><td class="n"><b>107,214,677</b></td><td class="n"><b>8</b></td><td class="n">&mdash;</td><td class="n ok"><b>6,152 / 6,152</b></td></tr>
+</tbody></table></div>
+</div></section><section><div class="col">
+<span class="snum">&sect;5 &nbsp; Where the break fails</span>
+<h2>The embeddings need a different argument entirely</h2>
+<p>The token and position tables carry their own additive gauge, and &sect;4 does not rescue it. The reason is exact rather than practical: <b>a uniform shift of a feature is itself a lattice translation.</b> It carries grid points to grid points, so the float32 grid supplies no constraint at all. The lattice attack was run anyway and reached 820,496 of 39,383,808 values, 2.08% &mdash; a negative result reported because it delimits the method.</p>
+<p>What closed the embeddings avoids the gauge instead of breaking it. The tied readout observes <span class="mono">wte</span> without <span class="mono">wpe</span>, and 768 logit equations fix the gauge constants outright: 39,383,808 of 39,383,808, with a shuffled control at 0 of 39,383,808.</p>
+<h3>Eight weights that needed more evidence, not better arithmetic</h3>
+<p>Eight parameters sit where the float64 oracle's own rounding is the noise floor, so at <span class="mono">N = 8,192</span> their last bit is a coin toss. No amount of precision fixes that; more observations do, because the decision margin grows as <span class="mono">&radic;N</span>. A second stage draws fresh sequences for those columns alone until every margin reaches 4: 8 stragglers, 27 chunks, margins 4.012 to 16.816, at 221,184 observations.</p>
+<p>The hardest is <span class="mono">h.3.mlp.c_fc</span> column 2350. Independently of any of this, the only non-positive LayerNorm gain in the entire checkpoint is <span class="mono">h.3.ln_2.weight[266] = &minus;2.5572e&minus;04</span>, whose <span class="mono">1/g = &minus;3910.5</span> ranks first of 768 by magnitude in that block, 1218&times; the median. The worst-conditioned coordinate in the model and the last weight to close are the same coordinate. That correspondence was available to fail and did not.</p>
+</div></section>
+<section><div class="col">
+<span class="snum">&sect;6 &nbsp; Result</span>
+<h2>Every parameter, on two unrelated machines</h2>
+<div class="tablewrap"><table>
+<thead><tr><th>population</th><th>closed by</th><th>recovered / total</th></tr></thead>
+<tbody>
+<tr><td>gauge-free weights</td><td>&sect;2 least squares</td><td class="n ok">35,389,440 / 35,389,440</td></tr>
+<tr><td>gauge-free biases</td><td>&sect;2 least squares</td><td class="n ok">18,432 / 18,432</td></tr>
+<tr><td>LayerNorm gains and biases</td><td>&sect;2 least squares</td><td class="n ok">38,400 / 38,400</td></tr>
+<tr><td>LayerNorm-fed weights</td><td>&sect;4 lattice</td><td class="n ok">49,545,216 / 49,545,216</td></tr>
+<tr><td>LayerNorm-fed biases</td><td>&sect;4 lattice</td><td class="n ok">64,512 / 64,512</td></tr>
+<tr><td>embeddings</td><td>&sect;5 tied readout</td><td class="n ok">39,383,808 / 39,383,808</td></tr>
+<tr><td><b>total</b></td><td></td><td class="n ok"><b>124,439,808 / 124,439,808</b></td></tr>
+</tbody></table></div>
+<p>Misses: none. The assembled file's sha256 is <span class="mono">248dfc3911869ec493c76e65bf2fcf7f615828b0254c12b473182f0f81d3a707</span>, equal to the published checkpoint's.</p>
+<h3>Independence</h3>
+<p>The run was repeated on a machine sharing no instruction set, operating system, numerics library or extended-precision implementation with the first.</p>
+<div class="tablewrap"><table>
+<thead><tr><th></th><th>machine-a</th><th>machine-b</th></tr></thead>
+<tbody>
+<tr><td>architecture</td><td>AMD64 / Windows 11</td><td>aarch64 / Linux</td></tr>
+<tr><td>extended precision</td><td>double-double</td><td>quad</td></tr>
+<tr><td>longdouble eps</td><td class="n">2.22e&minus;16</td><td class="n">1.93e&minus;34</td></tr>
+<tr><td>high-precision columns</td><td class="n">88</td><td class="n">89</td></tr>
+<tr><td>sha256 of recovered bits</td><td>e7ddb1fe&hellip;70eec2</td><td class="ok">e7ddb1fe&hellip;70eec2</td></tr>
+</tbody></table></div>
+<p>The two machines took measurably different routes &mdash; 88 columns needed the extended-precision path on one, 89 on the other &mdash; and produced identical bits. The path is contingent; the answer is not.</p>
+</div></section>
+<section><div class="col">
+<span class="snum">&sect;7 &nbsp; Falsifier</span>
+<h2>A method that always succeeds has shown nothing</h2>
+<p>Permute the rows of <span class="mono">X</span>, breaking their pairing with <span class="mono">Y</span>, and run the identical solve. If the recovered bits came from anything other than the observations, this would change nothing.</p>
+<div class="tablewrap"><table>
+<thead><tr><th>map</th><th>real solve</th><th>rows of X permuted</th></tr></thead>
+<tbody>
+<tr><td>h.0.attn.c_proj.weight</td><td class="n ok">590,592 / 590,592 bits</td><td class="n no">bit-match 0.000000000</td></tr>
+<tr><td>h.0.mlp.c_proj.weight</td><td class="n ok">2,360,064 / 2,360,064 bits</td><td class="n no">bit-match 0.000000000</td></tr>
+<tr><td>residual</td><td class="n">2.13e&minus;14 / 2.84e&minus;14</td><td class="n">2.11e+01 / 6.47e+01</td></tr>
+</tbody></table></div>
+<p>Exactly zero bits, with residuals fifteen orders of magnitude larger. The result depends on the observations and on their pairing.</p>
+</div></section>
+<section><div class="col">
+<span class="snum">&sect;8 &nbsp; What is not shown</span>
+<h2>Why this paper publishes its method</h2>
+<div class="limit">
+<p>Every measurement here is produced by our instrument, and the target is a checkpoint anyone can download. <b>Byte-equality with a public file is consistent with having copied that file.</b> No further computation over GPT-2 closes that gap, because the gap is structural.</p>
+<p>There are exactly two ways out. One is an auditor who publishes the sha256 of a model we have never seen, exposes query access, receives a file and hashes it. The other is to publish the method, so that any reader can run it against a target of their own choosing and stop taking our word for anything. We have taken the second.</p>
+</div>
+<p>The mathematics above is the method. &sect;2 is least squares; &sect;3 is two lines of algebra anyone can verify against the checkpoint; &sect;4 is an enumeration whose statistic is calibrated against its own null in Figure 3. What remains proprietary is unrelated work &mdash; the 32B-scale pipeline and the inference engines &mdash; and none of it is load-bearing for anything claimed here.</p>
+<p>This paper has <b>not</b> been peer reviewed. Before publication the argument was put to two language models in separate sessions and prompted to attack it; that is adversarial review, not peer review, and it is reported as such. They pressed the copying objection above, which is why &sect;8 exists at all, and they found two defects in the earlier write-up: a mislabelled comparison column, and a one-sided grid tolerance that returned negative half-widths against the model's single negative LayerNorm gain. Both are corrected here. The mathematics of &sect;3 and &sect;4 came through unamended, which is weaker evidence than a referee's signature and is the only such evidence on offer.</p>
+</div></section>
+<footer><div class="col">
+<p>Dimension Zero Reverse Engineering &middot; d0re.com &middot; 16 September 2026<br>
+Target: openai-community/gpt2, sha256 248dfc39&hellip;d3a707. Observations N = 8,192, seed 32, ids sha256 50c674a8&hellip;<br>
+Every figure is read from a run record. No number was computed for the prose.</p>
+</div></footer>
+</main>
+</div>
+</body>
+</html>
